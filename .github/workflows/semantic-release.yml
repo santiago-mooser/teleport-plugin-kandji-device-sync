@@ -54,11 +54,13 @@ jobs:
 
   # SLSA builder job
   slsa-build:
-    needs: semantic-release
     permissions:
-      contents: write
-      id-token: write
-      actions: read
+      id-token: write # To sign the provenance.
+      contents: write # To upload assets to release.
+      actions: read # To read the workflow path.
+    needs: 
+      - semantic-release
+      - args
     strategy:
       matrix:
         os:
