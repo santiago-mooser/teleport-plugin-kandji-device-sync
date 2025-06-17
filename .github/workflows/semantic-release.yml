@@ -31,7 +31,7 @@ jobs:
     permissions:
       contents: write
     outputs:
-      new_release_version: ${{ semantic_release.new_release_version }}
+      new_release_version: ${{ steps.semantic_release.new_release_version }}
 
     steps:
       - name: Checkout
