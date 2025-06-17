@@ -5,7 +5,7 @@ env:
   - CGO_ENABLED=0
 
 # The OS to compile for. `GOOS` env variable will be set to this value.
-goos: dawrin
+goos: darwin
 
 # The architecture to compile for. `GOARCH` env variable will be set to this value.
 goarch: arm64
