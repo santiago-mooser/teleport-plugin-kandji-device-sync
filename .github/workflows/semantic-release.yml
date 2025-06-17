@@ -78,7 +78,9 @@ jobs:
   create-release:
     permissions:
       contents: write
-    needs: slsa-build
+    needs: 
+      - slsa-build
+      - semantic-release
     runs-on: ubuntu-latest
     steps:
       - name: Download SLSA build artifact
@@ -88,8 +90,9 @@ jobs:
            merge-multiple: true
 
       - name: Upload binaries & attestation to release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v2.3.2
         with:
+          tag_name: "{{ needs.semantic-release.outputs.new_release_version }}"
           files: "teleport-plugin-kandji-device-syncer*"  # Adjust path as needed
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
