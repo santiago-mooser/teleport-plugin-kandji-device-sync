@@ -1,39 +1,52 @@
+builds:
+  - env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
 
-name: goreleaser-slsa
-on:
-  push:
+kos:
+  - repository: ghcr.io/goreleaser/goreleaser-example-slsa-provenance
     tags:
-      - 'v*.*.*'
+      - '{{.Tag}}'
+      - '{{ if not .Prerelease }}latest{{ end }}' 
+    bare: true
+    preserve_import_paths: false
+    sbom: none
+    platforms:
+      - all
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
 
-permissions:
-  contents: write
-  id-token: write
+archives:
+  - format: tar.gz
+    # this name template makes the OS and Arch compatible with the results of uname.
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    # use zip for windows archives
+    format_overrides:
+    - goos: windows
+      format: zip
+checksum:
+  name_template: 'checksums.txt'
+snapshot:
+  name_template: "{{ incpatch .Version }}-next"
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
 
-jobs:
-  release:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.22' # Adjust if needed
-
-      - name: Install SLSA Verifier
-        uses: slsa-framework/slsa-github-generator/.github/actions/installer@v1.9.0
-
-      - name: Run GoReleaser with SLSA
-        uses: goreleaser/goreleaser-action@v5
-        with:
-          version: latest
-          args: release --clean --provenance
-
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      # Optional: Verify SLSA provenance
-      - name: Verify SLSA provenance
-        run: |
-          ./slsa-verifier verify-artifact --provenance-path dist/*.intoto.jsonl --source-uri github.com/${{ github.repository }}
+# The lines beneath this are called `modelines`. See `:help modeline`
+# Feel free to remove those if you don't want/use them.
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+# vim: set ts=2 sw=2 tw=0 fo=cnqoj
