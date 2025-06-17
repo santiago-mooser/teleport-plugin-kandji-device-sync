@@ -23,7 +23,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.22"
+          go-version: "1.23"
 
       - name: Build binaries
         run: |
@@ -39,7 +39,7 @@ jobs:
     needs: build-binaries
     uses: slsa-framework/slsa-github-generator/.github/workflows/builder_go_slsa3.yml@v2.0.0
     with:
-      go-version: "1.22"
+      go-version: "1.23"
       base-image: "ubuntu-latest"
       artifact-path: ${{ needs.build-binaries.outputs.artifact-path }}
 
