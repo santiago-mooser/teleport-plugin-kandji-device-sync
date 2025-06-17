@@ -6,6 +6,10 @@ This Go service continuously syncs devices from a Kandji instance into a Telepor
 This is an unofficial integration and is not supported by either Kandji or Teleport. Use at your own risk. Ensure you have backups and understand the implications of syncing devices between these two systems.
 The software is provided as-is without any warranties or guarantees. By using this software, you agree to take full responsibility for any issues that may arise from its use. Please see LICENSE for more details.
 
+## To do
+
+- [ ] Use tbot instead of a long-lived identity file
+
 ## How it Works
 
 The service performs a one-way synchronization:
