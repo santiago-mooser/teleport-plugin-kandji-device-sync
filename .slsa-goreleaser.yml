@@ -1,9 +1,5 @@
 version: 1
 
-
-# Version for this file.
-version: 1
-
 # (Optional) List of env variables used during compilation.
 env:
   - CGO_ENABLED=0
