@@ -30,6 +30,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    outputs:
+      new_release_version: ${{ semantic_release.new_release_version }}
 
     steps:
       - name: Checkout
@@ -51,6 +53,7 @@ jobs:
         id: semantic_release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        
 
   # SLSA builder job
   slsa-build:
