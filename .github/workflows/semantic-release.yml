@@ -8,8 +8,6 @@ on:
 jobs:
   semantic-release:
     if: "!contains(github.event.head_commit.message, '[skip ci]')"
-
-    name: Semantic Release
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -34,47 +32,26 @@ jobs:
         id: semantic_release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          
-  build-binaries:
-    runs-on: ubuntu-latest
-    outputs:
-      artifact-path: ${{ steps.set-artifact-path.outputs.path }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: "1.23"
-
-      - name: Build binaries
-        run: |
-          mkdir -p dist
-          GOOS=linux GOARCH=amd64 go build -o dist/app-linux-amd64 .
-          GOOS=darwin GOARCH=amd64 go build -o dist/app-darwin-amd64 .
-
-      - name: Set artifact path
-        id: set-artifact-path
-        run: echo "path=dist/" >> $GITHUB_OUTPUT
-
-  generate-slsa-provenance:
-    needs: build-binaries
+  # SLSA builder job
+  slsa-build:
+    needs: semantic-release
     uses: slsa-framework/slsa-github-generator/.github/workflows/builder_go_slsa3.yml@v2.0.0
     with:
       go-version: "1.23"
-      base-image: "ubuntu-latest"
-      artifact-path: ${{ needs.build-binaries.outputs.artifact-path }}
 
   create-release:
-    needs: build-binaries
+    needs: slsa-build
     runs-on: ubuntu-latest
     steps:
+      - name: Download SLSA build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: artifact  # or whatever the SLSA job outputs
+
       - name: Upload binaries to release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/*
+          files: "path/to/artifacts/*"  # Adjust path as needed
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
