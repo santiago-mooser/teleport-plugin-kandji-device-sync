@@ -1,52 +1,37 @@
-builds:
-  - env:
-      - CGO_ENABLED=0
-    goos:
-      - linux
-      - windows
-      - darwin
+version: 1
 
-kos:
-  - repository: ghcr.io/goreleaser/goreleaser-example-slsa-provenance
-    tags:
-      - '{{.Tag}}'
-      - '{{ if not .Prerelease }}latest{{ end }}' 
-    bare: true
-    preserve_import_paths: false
-    sbom: none
-    platforms:
-      - all
-    flags:
-      - -trimpath
-    ldflags:
-      - -s -w
 
-archives:
-  - format: tar.gz
-    # this name template makes the OS and Arch compatible with the results of uname.
-    name_template: >-
-      {{ .ProjectName }}_
-      {{- title .Os }}_
-      {{- if eq .Arch "amd64" }}x86_64
-      {{- else if eq .Arch "386" }}i386
-      {{- else }}{{ .Arch }}{{ end }}
-      {{- if .Arm }}v{{ .Arm }}{{ end }}
-    # use zip for windows archives
-    format_overrides:
-    - goos: windows
-      format: zip
-checksum:
-  name_template: 'checksums.txt'
-snapshot:
-  name_template: "{{ incpatch .Version }}-next"
-changelog:
-  sort: asc
-  filters:
-    exclude:
-      - '^docs:'
-      - '^test:'
+# Version for this file.
+version: 1
 
-# The lines beneath this are called `modelines`. See `:help modeline`
-# Feel free to remove those if you don't want/use them.
-# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
-# vim: set ts=2 sw=2 tw=0 fo=cnqoj
+# (Optional) List of env variables used during compilation.
+env:
+  - CGO_ENABLED=0
+
+# The OS to compile for. `GOOS` env variable will be set to this value.
+goos: 
+ - linux
+ - dawrin
+
+# The architecture to compile for. `GOARCH` env variable will be set to this value.
+goarch: 
+  - amd64
+  - arm64
+
+# (Optional) Entrypoint to compile.
+# main: ./path/to/main.go
+
+# (Optional) Working directory. (default: root of the project)
+# dir: ./relative/path/to/dir
+
+# Binary output name.
+# {{ .Os }} will be replaced by goos field in the config file.
+# {{ .Arch }} will be replaced by goarch field in the config file.
+binary: teleport-plugin-kandji-device-syncer-{{ .Os }}-{{ .Arch }}
+
+# (Optional) ldflags generated dynamically in the workflow, and set as the `evaluated-envs` input variables in the workflow.
+ldflags:
+  - "-X main.Version={{ .Env.VERSION }}"
+  - "-X main.Commit={{ .Env.COMMIT }}"
+  - "-X main.CommitDate={{ .Env.COMMIT_DATE }}"
+  - "-X main.TreeState={{ .Env.TREE_STATE }}"
