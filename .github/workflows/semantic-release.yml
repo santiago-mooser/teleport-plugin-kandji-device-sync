@@ -78,23 +78,17 @@ jobs:
   create-release:
     needs: slsa-build
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        os:
-          - linux
-          - darwin
-        arch:
-          - amd64
-          - arm64
     steps:
       - name: Download SLSA build artifact
         uses: actions/download-artifact@v4
         with:
-           name: teleport-plugin-kandji-device-syncer-${{matrix.os}}-${{matrix.arch}}
+           pattern: teleport-plugin-kandji-device-syncer*
+           merge-multiple: true
 
-      - name: Upload binaries to release
+      - name: Upload binaries & attestation to release
         uses: softprops/action-gh-release@v2
         with:
-          files: "teleport-plugin-kandji-device-syncer-${{matrix.os}}-${{matrix.arch}}"  # Adjust path as needed
+          tag: ${{ github.ref }}
+          files: "teleport-plugin-kandji-device-syncer*"  # Adjust path as needed
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
