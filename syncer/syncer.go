@@ -170,6 +170,21 @@ func (s *Syncer) Sync(ctx context.Context) {
 		s.log.Debug("New devices found", "count", len(newDevices))
 	}
 
+	// Create a map for efficient lookup of devices to sync
+	devicesToSyncMap := make(map[string]struct{}, len(devicesToSync))
+	for _, device := range devicesToSync {
+		if device.SerialNumber != "" {
+			devicesToSyncMap[device.SerialNumber] = struct{}{}
+		}
+	}
+
+	// Remove all devices from KandjiDeviceMap that don't pass the filters (devicesToSync)
+	for serial := range kandjiDeviceMap {
+		if _, exists := devicesToSyncMap[serial]; !exists {
+			delete(kandjiDeviceMap, serial)
+		}
+	}
+
 	// Handle devices that are missing from Kandji but exist in Teleport
 	var missingDevices []string
 	if s.config.OnMissing != "ignore" {
@@ -219,12 +234,12 @@ func (s *Syncer) Sync(ctx context.Context) {
 			"eligible_devices", len(devicesToSync),
 			"new_devices_found", len(newDevices),
 			"successfully_added", result.SuccessCount,
-			"missing_devices", len(missingDevices))
+			"deleted_devices", len(missingDevices))
 	} else {
 		s.log.Info("Sync cycle complete - no new devices found",
 			"kandji_devices_total", len(kandjiDevices),
 			"eligible_devices", len(devicesToSync),
-			"missing_devices", len(missingDevices))
+			"deleted_devices", len(missingDevices))
 	}
 }
 
@@ -252,7 +267,7 @@ func (s *Syncer) handleMissingDevices(ctx context.Context, missingDevices []stri
 		}
 
 	case "delete":
-		s.log.Info("Deleting devices missing from Kandji",
+		s.log.Info("Deleting devices in Teleport that are not present in Kandji",
 			"count", len(missingDevices),
 			"batch_size", s.config.Batch.Size)
 

@@ -71,4 +71,3 @@ teleport:
 #    - Should only have device read/create permissions
 #    - Regularly rotate the identity certificate
 #
-# 4. Network Security: Use HTTPS endpoints only and verify certificates
