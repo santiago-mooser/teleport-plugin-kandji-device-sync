@@ -1,0 +1,53 @@
+# Kandji-Teleport Integration Configuration Example
+# Copy this file to config.yaml and update with your actual values
+
+# How often to run the sync process (e.g., 5m, 1h, 30s)
+sync_interval: 5m
+
+# Rate limiting settings to prevent overwhelming APIs
+rate_limits:
+  # Maximum Kandji API requests per second
+  kandji_requests_per_second: 10
+  # Maximum Teleport API requests per second
+  teleport_requests_per_second: 5
+  # Burst capacity for both APIs
+  burst_capacity: 5
+
+# Batch processing settings for bulk operations
+batch:
+  # Number of devices to process in each batch
+  size: 50
+
+# Kandji API Configuration
+kandji:
+  # Your Kandji instance API URL (replace 'your-tenant' with your actual tenant name)
+  api_url: "https://your-tenant.api.kandji.io"
+  # Your Kandji API Token - NEVER commit real tokens to version control
+  # Set this via environment variable KANDJI_API_TOKEN instead for security
+  # Generate at: Kandji Admin Portal > Settings > API Token
+  api_token: "${KANDJI_API_TOKEN}"
+
+# Teleport Configuration
+teleport:
+  # Address of your Teleport proxy (include port if not 443)
+  proxy_addr: "your-cluster.teleport.example.com:443"
+  # Path to the identity file for tctl authentication
+  # Generate with: tctl auth sign --format=identity --user=sync-service --out=identity.pem
+  # This identity must have permissions to read and create devices
+  identity_file: "identity.pem"
+
+# Security Notes:
+#
+# 1. API Tokens: Use environment variables instead of hardcoding tokens
+#    - Set KANDJI_API_TOKEN environment variable
+#    - Remove the api_token line above when using env vars
+#
+# 2. File Permissions: Restrict access to this config file
+#    - chmod 600 config.yaml
+#    - Store in a secure location with limited access
+#
+# 3. Identity File: Ensure the Teleport identity file has minimal required permissions
+#    - Should only have device read/create permissions
+#    - Regularly rotate the identity certificate
+#
+# 4. Network Security: Use HTTPS endpoints only and verify certificates
