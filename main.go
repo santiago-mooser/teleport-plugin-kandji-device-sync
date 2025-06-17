@@ -15,15 +15,25 @@ import (
 )
 
 func main() {
-	// Setup structured logging
-	log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-
-	// Load configuration
+	// Load configuration first to get log level
 	cfg, err := config.LoadConfig()
 	if err != nil {
-		log.Error("Failed to load configuration", "error", err)
+		// Use default logger for this error since we don't have config yet
+		slog.Error("Failed to load configuration", "error", err)
 		os.Exit(1)
 	}
+
+	// Setup structured logging with configured level
+	var logLevel slog.Level
+	err = logLevel.UnmarshalText([]byte(cfg.Log.Level))
+	if err != nil {
+		slog.Error("Invalid log level", "level", cfg.Log.Level, "error", err)
+		os.Exit(1)
+	}
+
+	log := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		Level: logLevel,
+	}))
 
 	// Create rate limiter
 	rateLimiter := ratelimit.New(ratelimit.Config{
@@ -41,7 +51,7 @@ func main() {
 	teleportClient := teleport.NewClient(cfg.Teleport, rateLimiter)
 
 	// Create and start the syncer
-	syncService := syncer.New(kandjiClient, teleportClient, cfg.Teleport, cfg.Batch, log)
+	syncService := syncer.New(kandjiClient, teleportClient, cfg, log)
 
 	// Set up context for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())

@@ -23,35 +23,37 @@ type User struct {
 
 // Device represents a device record from the Kandji API.
 type Device struct {
-	DeviceName      string `json:"device_name"`
-	SerialNumber    string `json:"serial_number"`
-	Platform        string `json:"platform"`
-	Model           string `json:"model"`
-	OSVersion       string `json:"os_version"`
-	UserObj         *User  `json:"-"`            // We'll handle this manually
-	UserEmail       string `json:"-"`           // We'll populate this from UserObj.Email if user exists
-	AssetTag        string `json:"asset_tag"`
-	LastSeen        string `json:"last_seen"`
-	EnrollmentDate  string `json:"enrollment_date"`
-	DeviceID        string `json:"device_id"`
-	MacAddress      string `json:"mac_address"`
+	DeviceName     string   `json:"device_name"`
+	SerialNumber   string   `json:"serial_number"`
+	Platform       string   `json:"platform"`
+	Model          string   `json:"model"`
+	OSVersion      string   `json:"os_version"`
+	UserObj        *User    `json:"-"` // We'll handle this manually
+	UserEmail      string   `json:"-"` // We'll populate this from UserObj.Email if user exists
+	AssetTag       string   `json:"asset_tag"`
+	LastSeen       string   `json:"last_seen"`
+	EnrollmentDate string   `json:"enrollment_date"`
+	DeviceID       string   `json:"device_id"`
+	MacAddress     string   `json:"mac_address"`
+	Tags           []string `json:"tags"`
 }
 
 // UnmarshalJSON implements custom JSON unmarshaling for Device to handle the user field properly
 func (d *Device) UnmarshalJSON(data []byte) error {
 	// Create a temporary struct with all fields except user
 	type TempDevice struct {
-		DeviceName      string      `json:"device_name"`
-		SerialNumber    string      `json:"serial_number"`
-		Platform        string      `json:"platform"`
-		Model           string      `json:"model"`
-		OSVersion       string      `json:"os_version"`
-		User            interface{} `json:"user"` // Accept any type for user field
-		AssetTag        string      `json:"asset_tag"`
-		LastSeen        string      `json:"last_seen"`
-		EnrollmentDate  string      `json:"enrollment_date"`
-		DeviceID        string      `json:"device_id"`
-		MacAddress      string      `json:"mac_address"`
+		DeviceName     string      `json:"device_name"`
+		SerialNumber   string      `json:"serial_number"`
+		Platform       string      `json:"platform"`
+		Model          string      `json:"model"`
+		OSVersion      string      `json:"os_version"`
+		User           interface{} `json:"user"` // Accept any type for user field
+		AssetTag       string      `json:"asset_tag"`
+		LastSeen       string      `json:"last_seen"`
+		EnrollmentDate string      `json:"enrollment_date"`
+		DeviceID       string      `json:"device_id"`
+		MacAddress     string      `json:"mac_address"`
+		Tags           []string    `json:"tags"`
 	}
 
 	var temp TempDevice
@@ -70,6 +72,7 @@ func (d *Device) UnmarshalJSON(data []byte) error {
 	d.EnrollmentDate = temp.EnrollmentDate
 	d.DeviceID = temp.DeviceID
 	d.MacAddress = temp.MacAddress
+	d.Tags = temp.Tags
 
 	// Handle the user field based on its type
 	if temp.User != nil {
@@ -102,10 +105,10 @@ func (d *Device) UnmarshalJSON(data []byte) error {
 
 // DevicesResponse represents the paginated response from Kandji API
 type DevicesResponse struct {
-	Results []Device `json:"results"`
-	Count   int      `json:"count"`
-	Next    *string  `json:"next"`
-	Previous *string `json:"previous"`
+	Results  []Device `json:"results"`
+	Count    int      `json:"count"`
+	Next     *string  `json:"next"`
+	Previous *string  `json:"previous"`
 }
 
 // Client is a client for interacting with the Kandji API.

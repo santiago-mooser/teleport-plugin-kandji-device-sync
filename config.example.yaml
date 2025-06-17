@@ -4,6 +4,27 @@
 # How often to run the sync process (e.g., 5m, 1h, 30s)
 sync_interval: 5m
 
+# on_missing configures what to do if a device is missing in Kandji but exists in Teleport
+# Options: "ignore", "delete", "alert"
+# "ignore" will leave the device in Teleport without changes
+# "delete" will remove the device from Teleport if it is not found in Kandji
+# "alert" will log an alert but leave the device in Teleport
+# Default is "ignore" to prevent accidental deletions
+on_missing: "delete"
+
+# Sync settings for devices without owners
+# If true, devices without owners in Kandji will be synced to Teleport
+# If false, these devices will be ignored
+sync_devices_without_owners: false
+
+
+# Devices that are tagged with these tags will be included in the sync
+# If include_tags is empty, all devices will be included
+# If exclude_tags is not empty, devices with these tags will be excluded
+# Note: Tags are case-sensitive
+include_tags: []
+exclude_tags: ["unmanaged", "test", "demo"]
+
 # Rate limiting settings to prevent overwhelming APIs
 rate_limits:
   # Maximum Kandji API requests per second
