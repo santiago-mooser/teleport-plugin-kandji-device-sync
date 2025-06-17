@@ -10,9 +10,10 @@ permissions:
   id-token: write  # Required for SLSA provenance
 
 jobs:
-  build-release:
+  build-binaries:
     runs-on: ubuntu-latest
-
+    outputs:
+      artifact-path: ${{ steps.set-artifact-path.outputs.path }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -22,22 +23,31 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.22"   # or your preferred version
+          go-version: "1.22"
 
       - name: Build binaries
         run: |
           mkdir -p dist
           GOOS=linux GOARCH=amd64 go build -o dist/app-linux-amd64 .
           GOOS=darwin GOARCH=amd64 go build -o dist/app-darwin-amd64 .
-          
-      - name: Generate SLSA Provenance (Go)
-        uses: slsa-framework/slsa-github-generator/.github/workflows/builder_go_slsa3.yml@v2.0.0
-        with:
-          go-version: "1.22"
-          base-image: "ubuntu-latest"
-          artifact-path: dist/
 
-      - name: Create GitHub Release
+      - name: Set artifact path
+        id: set-artifact-path
+        run: echo "path=dist/" >> $GITHUB_OUTPUT
+
+  generate-slsa-provenance:
+    needs: build-binaries
+    uses: slsa-framework/slsa-github-generator/.github/workflows/builder_go_slsa3.yml@v2.0.0
+    with:
+      go-version: "1.22"
+      base-image: "ubuntu-latest"
+      artifact-path: ${{ needs.build-binaries.outputs.artifact-path }}
+
+  create-release:
+    needs: build-binaries
+    runs-on: ubuntu-latest
+    steps:
+      - name: Upload binaries to release
         uses: softprops/action-gh-release@v2
         with:
           files: dist/*
