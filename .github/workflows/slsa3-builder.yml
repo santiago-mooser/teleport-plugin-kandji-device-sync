@@ -3,7 +3,7 @@ name: SLSA3 Go Release
 on:
   push:
     tags:
-      - "v*.*.*"    # Triggers only for semantic version tags
+      - v*    # Triggers only for semantic version tags
 
 permissions:
   contents: write
