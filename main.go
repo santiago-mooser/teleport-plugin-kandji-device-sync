@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"flag"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -14,7 +16,27 @@ import (
 	"teleport-plugin-kandji-device-syncer/teleport"
 )
 
+
+var (
+	Version    = "dev"
+	Commit     = "n/a"
+	CommitDate = "n/a"
+	TreeState  = "n/a"
+)
+
+func printVersion() {
+	showVersion := flag.Bool("version", false, "show version")
+	flag.Parse()
+	if *showVersion {
+		fmt.Printf("%s, %s, %s, %s\n", Version, Commit, CommitDate, TreeState)
+		os.Exit(0)
+	}
+}
+
 func main() {
+	
+	printVersion()
+	
 	// Load configuration first to get log level
 	cfg, err := config.LoadConfig()
 	if err != nil {
