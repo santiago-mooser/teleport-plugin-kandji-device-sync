@@ -25,7 +25,6 @@ binary: teleport-plugin-kandji-device-syncer-{{ .Os }}-{{ .Arch }}
 ldflags:
   - "-w"
   - "-s"
-  - "-X main.BuildDate={{ .Env.BUILD_DATE }}"
   - "-X main.Version={{ .Env.VERSION }}"
   - "-X main.Commit={{ .Env.COMMIT }}"
   - "-X main.CommitDate={{ .Env.COMMIT_DATE }}"
