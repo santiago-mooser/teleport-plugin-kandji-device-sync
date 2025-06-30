@@ -36,6 +36,8 @@ type Device struct {
 	DeviceID       string   `json:"device_id"`
 	MacAddress     string   `json:"mac_address"`
 	Tags           []string `json:"tags"`
+	BlueprintID    string   `json:"blueprint_id"`
+	BlueprintName  string   `json:"blueprint_name"`
 }
 
 // UnmarshalJSON implements custom JSON unmarshaling for Device to handle the user field properly
@@ -123,13 +125,13 @@ type Client struct {
 func NewClient(cfg config.KandjiConfig, rateLimiter *ratelimit.Limiter) (*Client, error) {
 	// Validate the API URL and token
 	if cfg.ApiURL == "" {
-		return nil, fmt.Errorf("Kandji API URL is required")
+		return nil, fmt.Errorf("kandji api url is required")
 	}
 	if cfg.ApiToken == "" {
-		return nil, fmt.Errorf("Kandji API token is required")
+		return nil, fmt.Errorf("kandji api token is required")
 	}
 	if !strings.HasPrefix(cfg.ApiURL, "https://") {
-		return nil, fmt.Errorf("Kandji API URL must start with https://")
+		return nil, fmt.Errorf("kandji api url must start with https://")
 	}
 
 	return &Client{
@@ -176,7 +178,7 @@ func (c *Client) GetDevices(ctx context.Context) ([]Device, error) {
 
 		req.Header.Set("Authorization", "Bearer "+c.apiToken)
 		req.Header.Set("Accept", "application/json")
-		req.Header.Set("User-Agent", "teleport-plugin-kandji-device-syncer/1.0")
+		req.Header.Set("User-Agent", "teleport-kandji-device-sync/1.0")
 
 		resp, err := c.httpClient.Do(req)
 		if err != nil {
@@ -197,7 +199,6 @@ func (c *Client) GetDevices(ctx context.Context) ([]Device, error) {
 		// Try to parse as paginated response first
 		var paginatedResp DevicesResponse
 		if err := json.Unmarshal(body, &paginatedResp); err == nil {
-			// No need to process devices here since UnmarshalJSON handles user extraction
 			allDevices = append(allDevices, paginatedResp.Results...)
 			if paginatedResp.Next != nil {
 				nextURL = *paginatedResp.Next
@@ -208,11 +209,9 @@ func (c *Client) GetDevices(ctx context.Context) ([]Device, error) {
 			// Fallback: try to parse as direct array
 			var devices []Device
 			if err := json.Unmarshal(body, &devices); err != nil {
-				// print more details about the error
 				fmt.Printf("Error details: %s\n", string(body))
 				return nil, fmt.Errorf("failed to unmarshal Kandji devices JSON: %w", err)
 			}
-			// No need to process devices here since UnmarshalJSON handles user extraction
 			allDevices = append(allDevices, devices...)
 			nextURL = ""
 		}

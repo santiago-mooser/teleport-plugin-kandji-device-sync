@@ -11,26 +11,33 @@ import (
 
 // Config holds all configuration for the application.
 type Config struct {
-	SyncInterval             time.Duration   `yaml:"sync_interval"`
-	OnMissing                string          `yaml:"on_missing"`
-	SyncDevicesWithoutOwners bool            `yaml:"sync_devices_without_owners"`
-	Kandji                   KandjiConfig    `yaml:"kandji"`
-	Teleport                 TeleportConfig  `yaml:"teleport"`
-	RateLimits               RateLimitConfig `yaml:"rate_limits"`
-	Batch                    BatchConfig     `yaml:"batch"`
-	IncludeTags              []string        `yaml:"include_tags"`
-	ExcludeTags              []string        `yaml:"exclude_tags"`
-	Log                      LoggingConfig   `yaml:"log"`
+	SyncInterval time.Duration   `yaml:"sync_interval"`
+	OnMissing    string          `yaml:"on_missing"`
+	Kandji       KandjiConfig    `yaml:"kandji"`
+	Teleport     TeleportConfig  `yaml:"teleport"`
+	RateLimits   RateLimitConfig `yaml:"rate_limits"`
+	Batch        BatchConfig     `yaml:"batch"`
+	Log          LoggingConfig   `yaml:"log"`
+}
+
+type BlueprintFilter struct {
+	BlueprintIDs   []string `yaml:"blueprint_ids"`
+	BlueprintNames []string `yaml:"blueprint_names"`
 }
 
 type LoggingConfig struct {
 	Level string `yaml:"level"`
 }
 
-// KandjiConfig holds Kandji-specific settings.
 type KandjiConfig struct {
-	ApiURL   string `yaml:"api_url"`
-	ApiToken string `yaml:"api_token"`
+	ApiURL                   string          `yaml:"api_url"`
+	ApiToken                 string          `yaml:"api_token"`
+	SyncDevicesWithoutOwners bool            `yaml:"sync_devices_without_owners"`
+	SyncMobileDevices        bool            `yaml:"sync_mobile_devices"`
+	IncludeTags              []string        `yaml:"include_tags"`
+	ExcludeTags              []string        `yaml:"exclude_tags"`
+	BlueprintsInclude        BlueprintFilter `yaml:"blueprints_include"`
+	BlueprintsExclude        BlueprintFilter `yaml:"blueprints_exclude"`
 }
 
 // TeleportConfig holds Teleport-specific settings.
@@ -85,7 +92,7 @@ func LoadConfig() (*Config, error) {
 		cfg.OnMissing = onMissing
 	}
 	if syncWithoutOwners := os.Getenv("SYNC_DEVICES_WITHOUT_OWNERS"); syncWithoutOwners != "" {
-		cfg.SyncDevicesWithoutOwners = strings.ToLower(syncWithoutOwners) == "true"
+		cfg.Kandji.SyncDevicesWithoutOwners = strings.ToLower(syncWithoutOwners) == "true"
 	}
 
 	if logLevel := os.Getenv("LOG_LEVEL"); logLevel != "" {
@@ -159,7 +166,7 @@ func (c *Config) Validate() error {
 
 	// Check if identity file exists
 	if _, err := os.Stat(c.Teleport.IdentityFile); err != nil {
-		return fmt.Errorf("Teleport identity file does not exist: %s", c.Teleport.IdentityFile)
+		return fmt.Errorf("teleport identity file does not exist: %s", c.Teleport.IdentityFile)
 	}
 
 	return nil

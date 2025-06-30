@@ -1,6 +1,9 @@
 # Kandji-Teleport Integration Configuration Example
 # Copy this file to config.yaml and update with your actual values
 
+log:
+  level: "INFO"  # valid log levels are: DEBUG, INFO, WARN, ERROR
+
 # How often to run the sync process (e.g., 5m, 1h, 30s)
 sync_interval: 5m
 
@@ -12,18 +15,48 @@ sync_interval: 5m
 # Default is "ignore" to prevent accidental deletions
 on_missing: "delete"
 
-# Sync settings for devices without owners
-# If true, devices without owners in Kandji will be synced to Teleport
-# If false, these devices will be ignored
-sync_devices_without_owners: false
 
+# Kandji API Configuration
+kandji:
+  # Your Kandji instance API URL (replace 'your-tenant' with your actual tenant name)
+  # Can also be passed by environment variable: KANDJI_API_URL
+  api_url: "https://your-tenant.api.kandji.io"
+  # Your Kandji API Token - NEVER commit real tokens to version control
+  # Set this via environment variable KANDJI_API_TOKEN instead for security
+  # Generate at: Kandji Admin Portal > Settings > API Token
+  api_token: "${KANDJI_API_TOKEN}"
 
-# Devices that are tagged with these tags will be included in the sync
-# If include_tags is empty, all devices will be included
-# If exclude_tags is not empty, devices with these tags will be excluded
-# Note: Tags are case-sensitive
-include_tags: []
-exclude_tags: ["unmanaged", "test", "demo"]
+  # Devices that are tagged with these tags will be included in the sync
+  # If include_tags is empty, all devices will be included
+  # If exclude_tags is not empty, devices with these tags will be excluded
+  # Note: Tags are case-sensitive
+  include_tags: []
+  exclude_tags: []
+
+  # Blueprint filters
+  # Similarly, you can filter blueprints by IDs or names
+  blueprints_include:
+    blueprint_ids: []
+    blueprint_names: []
+  blueprints_exclude:
+    blueprint_ids: []
+    blueprint_names: []
+
+  # Sync settings for devices without owners
+  # If true, devices without owners in Kandji will be synced to Teleport
+  # If false, these devices will be ignored
+  sync_mobile_devices: false
+  sync_devices_without_owners: false
+
+# Teleport Configuration
+teleport:
+  # Address of your Teleport proxy (include port if not 443)
+  proxy_addr: "your-cluster.teleport.example.com:443"
+  # Path to the identity file for tctl authentication
+  # Generate with: tctl auth sign --format=identity --user=sync-service --out=identity.pem
+  # This identity must have permissions to read and create devices
+  # You can also set this via environment variable: TELEPORT_IDENTITY_FILE
+  identity_file: "identity.pem"
 
 # Rate limiting settings to prevent overwhelming APIs
 rate_limits:
@@ -38,24 +71,6 @@ rate_limits:
 batch:
   # Number of devices to process in each batch
   size: 50
-
-# Kandji API Configuration
-kandji:
-  # Your Kandji instance API URL (replace 'your-tenant' with your actual tenant name)
-  api_url: "https://your-tenant.api.kandji.io"
-  # Your Kandji API Token - NEVER commit real tokens to version control
-  # Set this via environment variable KANDJI_API_TOKEN instead for security
-  # Generate at: Kandji Admin Portal > Settings > API Token
-  api_token: "${KANDJI_API_TOKEN}"
-
-# Teleport Configuration
-teleport:
-  # Address of your Teleport proxy (include port if not 443)
-  proxy_addr: "your-cluster.teleport.example.com:443"
-  # Path to the identity file for tctl authentication
-  # Generate with: tctl auth sign --format=identity --user=sync-service --out=identity.pem
-  # This identity must have permissions to read and create devices
-  identity_file: "identity.pem"
 
 # Security Notes:
 #

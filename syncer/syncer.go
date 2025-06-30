@@ -33,9 +33,11 @@ func (s *Syncer) Run(ctx context.Context, syncInterval time.Duration) {
 	s.log.Info("Starting sync process",
 		"interval", syncInterval.String(),
 		"on_missing", s.config.OnMissing,
-		"sync_devices_without_owners", s.config.SyncDevicesWithoutOwners,
-		"include_tags", s.config.IncludeTags,
-		"exclude_tags", s.config.ExcludeTags)
+		"sync_devices_without_owners", s.config.Kandji.SyncDevicesWithoutOwners,
+		"include_tags", s.config.Kandji.IncludeTags,
+		"exclude_tags", s.config.Kandji.ExcludeTags,
+		"blueprints_include", s.config.Kandji.BlueprintsInclude,
+		"blueprints_exclude", s.config.Kandji.BlueprintsExclude)
 
 	// Connect to Teleport
 	if err := s.teleportClient.Connect(ctx, s.config.Teleport); err != nil {
@@ -73,6 +75,11 @@ func (s *Syncer) Sync(ctx context.Context) {
 	}
 	s.log.Debug("Successfully fetched devices from Teleport", "count", len(teleportAssetTags))
 
+	// Create maps for efficient lookup
+	teleportDeviceMap := make(map[string]struct{}, len(teleportAssetTags))
+	for _, tag := range teleportAssetTags {
+		teleportDeviceMap[tag] = struct{}{}
+	}
 	// Get devices from Kandji
 	kandjiDevices, err := s.kandjiClient.GetDevices(ctx)
 	if err != nil {
@@ -81,12 +88,6 @@ func (s *Syncer) Sync(ctx context.Context) {
 	}
 	s.log.Debug("Successfully fetched devices from Kandji", "count", len(kandjiDevices))
 
-	// Create maps for efficient lookup
-	teleportDeviceMap := make(map[string]struct{}, len(teleportAssetTags))
-	for _, tag := range teleportAssetTags {
-		teleportDeviceMap[tag] = struct{}{}
-	}
-
 	kandjiDeviceMap := make(map[string]struct{}, len(kandjiDevices))
 	for _, device := range kandjiDevices {
 		if device.SerialNumber != "" {
@@ -94,68 +95,76 @@ func (s *Syncer) Sync(ctx context.Context) {
 		}
 	}
 
-	// Filter devices where the platform is "iPhone" or "iPad"
+	// 1. Apply filters
 	var filteredKandjiDevices []kandji.Device
 	for _, device := range kandjiDevices {
-		if device.Platform != "iPhone" && device.Platform != "iPad" {
-			filteredKandjiDevices = append(filteredKandjiDevices, device)
-		}
-	}
-	s.log.Debug("Filtered devices with wrong platform: ", "count", len(kandjiDevices)-len(filteredKandjiDevices))
-	kandjiDevices = filteredKandjiDevices
-
-	// Filter devices based on sync_devices_without_owners setting
-	var devicesToSync []kandji.Device
-	var skippedWithoutOwners int
-
-	for _, device := range kandjiDevices {
 		if device.SerialNumber == "" {
-			s.log.Warn("Skipping device with empty serial number", "device_name", device.DeviceName)
+			s.log.Debug("Skipping device with empty serial number", "device_name", device.DeviceName)
+			continue
+		}
+		if !s.config.Kandji.SyncDevicesWithoutOwners && device.UserEmail == "" {
+			s.log.Debug("Skipping device without owner", "serial_number", device.SerialNumber)
+			continue
+		}
+		if !s.config.Kandji.SyncMobileDevices && (device.Platform == "iPhone" || device.Platform == "iPad") {
+			s.log.Debug("Skipping mobile device", "serial_number", device.SerialNumber)
+			continue
+		}
+		if len(s.config.Kandji.IncludeTags) > 0 && !s.deviceHasAnyTag(device, s.config.Kandji.IncludeTags) {
+			continue
+		}
+		if len(s.config.Kandji.ExcludeTags) > 0 && s.deviceHasAnyTag(device, s.config.Kandji.ExcludeTags) {
 			continue
 		}
 
-		// Check if device has owner when sync_devices_without_owners is false
-		if !s.config.SyncDevicesWithoutOwners && device.UserEmail == "" {
-			skippedWithoutOwners++
+		// Blueprint include filter
+		includeBlueprints := s.config.Kandji.BlueprintsInclude
+		if len(includeBlueprints.BlueprintIDs) > 0 || len(includeBlueprints.BlueprintNames) > 0 {
+			matched := false
+			for _, id := range includeBlueprints.BlueprintIDs {
+				if device.BlueprintID == id {
+					matched = true
+					break
+				}
+			}
+			for _, name := range includeBlueprints.BlueprintNames {
+				if device.BlueprintName == name {
+					matched = true
+					break
+				}
+			}
+			if !matched {
+				continue
+			}
+		}
+
+		// Blueprint exclude filter
+		excludeBlueprints := s.config.Kandji.BlueprintsExclude
+		excluded := false
+		for _, id := range excludeBlueprints.BlueprintIDs {
+			if device.BlueprintID == id {
+				excluded = true
+				break
+			}
+		}
+		for _, name := range excludeBlueprints.BlueprintNames {
+			if device.BlueprintName == name {
+				excluded = true
+				break
+			}
+		}
+		if excluded {
 			continue
 		}
 
-		devicesToSync = append(devicesToSync, device)
+		filteredKandjiDevices = append(filteredKandjiDevices, device)
+		s.log.Debug("Including device for sync", "serial_number", device.SerialNumber)
 	}
-
-	if skippedWithoutOwners > 0 {
-		s.log.Debug("Skipped devices without owners", "count", skippedWithoutOwners)
-	}
-
-	// if includeTags is not empty, only include devices with the tags in the IncludeTags list
-	if len(s.config.IncludeTags) > 0 {
-		var filteredDevices []kandji.Device
-		for _, device := range devicesToSync {
-			if s.deviceHasAnyTag(device, s.config.IncludeTags) {
-				filteredDevices = append(filteredDevices, device)
-			}
-		}
-		s.log.Debug("Included devices after applying includeTags", "count", len(filteredDevices))
-		devicesToSync = filteredDevices
-	}
-
-	// If excludeTags is not empty, filter any devices that include tags in the excludeTags list
-	if len(s.config.ExcludeTags) > 0 {
-		var filteredDevices []kandji.Device
-		for _, device := range devicesToSync {
-			if !s.deviceHasAnyTag(device, s.config.ExcludeTags) {
-				filteredDevices = append(filteredDevices, device)
-			}
-		}
-		s.log.Debug("Excluded devices after applying excludeTags", "count", len(filteredDevices)-len(devicesToSync))
-		devicesToSync = filteredDevices
-	}
-
-	s.log.Debug("Total devices in Kandji that pass filters", "count", len(devicesToSync))
+	s.log.Info("Total new devices in Kandji that pass filters", "count", len(filteredKandjiDevices))
 
 	// Find new devices that need to be added to Teleport
 	var newDevices []kandji.Device
-	for _, device := range devicesToSync {
+	for _, device := range filteredKandjiDevices {
 		if _, exists := teleportDeviceMap[device.SerialNumber]; !exists {
 			s.log.Debug("New device found",
 				"serial_number", device.SerialNumber,
@@ -171,8 +180,8 @@ func (s *Syncer) Sync(ctx context.Context) {
 	}
 
 	// Create a map for efficient lookup of devices to sync
-	devicesToSyncMap := make(map[string]struct{}, len(devicesToSync))
-	for _, device := range devicesToSync {
+	devicesToSyncMap := make(map[string]struct{}, len(filteredKandjiDevices))
+	for _, device := range filteredKandjiDevices {
 		if device.SerialNumber != "" {
 			devicesToSyncMap[device.SerialNumber] = struct{}{}
 		}
@@ -202,6 +211,10 @@ func (s *Syncer) Sync(ctx context.Context) {
 	s.log.Debug("Total devices to sync", "count", len(newDevices))
 
 	// Process new devices in bulk if any found
+	deletedDevicesKey := "deleted_devices"
+	if s.config.OnMissing != "delete" {
+		deletedDevicesKey = "present_devices_missing_from_kandji"
+	}
 	if len(newDevices) > 0 {
 		s.log.Debug("Processing new devices in bulk", "count", len(newDevices), "batch_size", s.config.Batch.Size)
 
@@ -228,18 +241,17 @@ func (s *Syncer) Sync(ctx context.Context) {
 		for _, generalError := range result.Errors {
 			s.log.Error("Bulk operation error", "error", generalError)
 		}
-
 		s.log.Info("Sync cycle complete",
 			"kandji_devices_total", len(kandjiDevices),
-			"eligible_devices", len(devicesToSync),
+			"eligible_devices", len(filteredKandjiDevices),
 			"new_devices_found", len(newDevices),
 			"successfully_added", result.SuccessCount,
-			"deleted_devices", len(missingDevices))
+			deletedDevicesKey, len(missingDevices))
 	} else {
 		s.log.Info("Sync cycle complete - no new devices found",
 			"kandji_devices_total", len(kandjiDevices),
-			"eligible_devices", len(devicesToSync),
-			"deleted_devices", len(missingDevices))
+			"eligible_devices", len(filteredKandjiDevices),
+			deletedDevicesKey, len(missingDevices))
 	}
 }
 
