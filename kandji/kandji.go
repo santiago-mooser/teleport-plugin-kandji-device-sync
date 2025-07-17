@@ -56,6 +56,8 @@ func (d *Device) UnmarshalJSON(data []byte) error {
 		DeviceID       string      `json:"device_id"`
 		MacAddress     string      `json:"mac_address"`
 		Tags           []string    `json:"tags"`
+		BlueprintID    string      `json:"blueprint_id"`
+		BlueprintName  string      `json:"blueprint_name"`
 	}
 
 	var temp TempDevice
@@ -75,6 +77,8 @@ func (d *Device) UnmarshalJSON(data []byte) error {
 	d.DeviceID = temp.DeviceID
 	d.MacAddress = temp.MacAddress
 	d.Tags = temp.Tags
+	d.BlueprintID = temp.BlueprintID
+	d.BlueprintName = temp.BlueprintName
 
 	// Handle the user field based on its type
 	if temp.User != nil {
@@ -178,7 +182,7 @@ func (c *Client) GetDevices(ctx context.Context) ([]Device, error) {
 
 		req.Header.Set("Authorization", "Bearer "+c.apiToken)
 		req.Header.Set("Accept", "application/json")
-		req.Header.Set("User-Agent", "teleport-kandji-device-sync/1.0")
+		req.Header.Set("User-Agent", "kandji-cloudflare-device-sync/1.0")
 
 		resp, err := c.httpClient.Do(req)
 		if err != nil {
