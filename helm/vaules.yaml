@@ -6,8 +6,9 @@ argocd:
 replicaCount: 1
 
 image:
-  repository: registry.gitlab.int.hextech.io/technology/security/teleport-plugin-kandji-device-sync
-  tag: "1.4.3"
+  # I recommend you self-host this
+  repository: santiagomooser/teleport-plugin-kandji-device-syncer
+  tag: "v1.11.0-distroless"
   pullPolicy: IfNotPresent
 imagePullSecret:
   - name: regcred
