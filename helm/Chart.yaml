@@ -1,0 +1,6 @@
+apiVersion: v2
+name: teleport-plugin-kandji-device-sync
+description: A Helm chart for deploying the (Unofficial) Teleport Plugin for Kandji Device Sync
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
