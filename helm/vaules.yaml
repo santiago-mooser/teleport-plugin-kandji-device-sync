@@ -1,0 +1,67 @@
+
+argocd:
+  namespace: teleport
+  releaseName: teleport-plugin-kandji-device-sync
+
+replicaCount: 1
+
+image:
+  repository: registry.gitlab.int.hextech.io/technology/security/teleport-plugin-kandji-device-sync
+  tag: "1.4.3"
+  pullPolicy: IfNotPresent
+imagePullSecret:
+  - name: regcred
+
+config:
+  # Example config.yaml content (YAML as string, will be mounted as a ConfigMap)
+  enabled: true
+  data: |
+    sync_interval: 5m
+    on_missing: delete
+    kandji:
+      api_url: ""
+      sync_devices_without_owners: false
+      sync_mobile_devices: false
+      include_tags: []
+      exclude_tags: []
+      blueprints_include:
+        blueprint_ids: []
+        blueprint_names: []
+      blueprints_exclude:
+        blueprint_ids: []
+        blueprint_names: []
+    teleport:
+      # Address of your Teleport proxy
+      proxy_addr: ""
+      # Bot name must match the bot created in Teleport
+      bot_name: "kandji-syncer"
+    rate_limits:
+      kandji_requests_per_second: 10
+      teleport_requests_per_second: 10
+      burst_capacity: 5
+    batch:
+      size: 50
+      max_concurrent_batches: 3
+
+Env:
+  LOG_LEVEL: INFO
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: false
+  name: ""
+
+podAnnotations: {}
+
+podSecurityContext: {}
+
+securityContext: {}
+
+resources: {}
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
