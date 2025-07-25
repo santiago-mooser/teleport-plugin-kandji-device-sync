@@ -6,9 +6,9 @@ This Go service continuously syncs devices from a Kandji instance into a Telepor
 This is an unofficial integration and is not supported by either Kandji or Teleport. Use at your own risk. Ensure you have backups and understand the implications of syncing devices between these two systems.
 The software is provided as-is without any warranties or guarantees. By using this software, you agree to take full responsibility for any issues that may arise from its use. Please see LICENSE for more details.
 
-## To do
+## Todo
 
-- [ ] Use tbot instead of a long-lived identity file
+- [ ] Refresh the identity file on sync in order to support tbot-based identity files
 
 ## How it Works
 
@@ -20,9 +20,11 @@ The service performs a one-way synchronization:
 
 ## Prerequisites
 
--   **Go**: Version 1.23.10 or later (if compiling and not building dockerfile).
--   **Kandji API Key**: You need an API key from your Kandji instance with permissions to read device information.
--   **Teleport Identity file**: An identity file (`.pem`) for a Teleport user or bot with a role that has the following permissions:
+- **Go**: Version 1.23.10 or later (if compiling and not building dockerfile).
+- **Kandji API Key**: You need an API key from your Kandji instance with permissions to read device information.
+- **A method to authenticate with teleport**:
+  - **Option 1: Deploy Teleport's tbot** (recommended): The tbot should automatically deploy a secret to the namespace you deploy it to once you configure it correctly. Either point the helm chart to mount the secret (check the secret name) or specify the file using the `TELEPORT_IDENTITY_FILE` environment variable
+  - **Option 2: Static Teleport Identity file**: An identity file (`.pem`) for a Teleport user or bot with a role that has the following permissions:
     ```yaml
     kind: role
     version: v7
