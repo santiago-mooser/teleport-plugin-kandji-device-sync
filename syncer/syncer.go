@@ -450,12 +450,7 @@ func (s *Syncer) reconnectToTeleport(ctx context.Context, newTeleportConfig conf
 	}
 
 	// Create a new Teleport client instance with updated config
-	newTeleportClient, err := teleport.NewClient(newTeleportConfig)
-	if err != nil {
-		s.log.Error("Failed to create new Teleport client with updated configuration", "error", err)
-		// Note: We continue execution here - the sync will fail but we don't want to crash the whole process
-		return
-	}
+	newTeleportClient := teleport.NewClient(newTeleportConfig, s.rateLimiter)
 
 	// Replace the old client with the new one
 	s.teleportClient = newTeleportClient
