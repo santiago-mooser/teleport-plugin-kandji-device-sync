@@ -234,7 +234,7 @@ func (c *Client) UpdateRateLimiter(rateLimiter *ratelimit.Limiter) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if rateLimiter == nil {
-		fmt.Println("Warning: Attempted to update rate limiter with a nil value. Operation aborted.")
+		c.logger.Println("Warning: Attempted to update rate limiter with a nil value. Operation aborted.")
 		return
 	}
 	c.rateLimiter = rateLimiter
