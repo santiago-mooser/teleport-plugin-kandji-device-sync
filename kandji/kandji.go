@@ -231,5 +231,9 @@ func (c *Client) GetDevices(ctx context.Context) ([]Device, error) {
 
 // UpdateRateLimiter updates the rate limiter used by this client
 func (c *Client) UpdateRateLimiter(rateLimiter *ratelimit.Limiter) {
+	if rateLimiter == nil {
+		fmt.Println("Warning: Attempted to update rate limiter with a nil value. Operation aborted.")
+		return
+	}
 	c.rateLimiter = rateLimiter
 }
