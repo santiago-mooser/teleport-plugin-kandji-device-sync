@@ -42,6 +42,6 @@ LABEL go_version=1.23.2 \
 
 WORKDIR /app
 COPY --from=builder \
-     /src/teleport-plugin-kandji-device-syncer .
+     /src/teleport-plugin-kandji-device-sync .
 
-CMD [ "/app/teleport-plugin-kandji-device-syncer" ]
+CMD [ "/app/teleport-plugin-kandji-device-sync" ]
