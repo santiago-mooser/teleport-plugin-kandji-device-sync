@@ -8,9 +8,9 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	devicetrustv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 
-	"teleport-plugin-kandji-device-syncer/config"
-	"teleport-plugin-kandji-device-syncer/internal/ratelimit"
-	"teleport-plugin-kandji-device-syncer/kandji"
+	"teleport-plugin-kandji-device-sync/config"
+	"teleport-plugin-kandji-device-sync/internal/ratelimit"
+	"teleport-plugin-kandji-device-sync/kandji"
 )
 
 // BulkCreateResult holds the results of a bulk device creation operation.
@@ -451,4 +451,9 @@ func (c *Client) AddDevice(ctx context.Context, serialNumber string) error {
 	}
 
 	return nil
+}
+
+// UpdateRateLimiter updates the rate limiter used by this client
+func (c *Client) UpdateRateLimiter(rateLimiter *ratelimit.Limiter) {
+	c.rateLimiter = rateLimiter
 }
