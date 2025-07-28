@@ -449,12 +449,15 @@ func (s *Syncer) reconnectToTeleport(ctx context.Context, newTeleportConfig conf
 		s.log.Warn("Error closing existing Teleport connection", "error", err)
 	}
 
-	// Establish new connection with updated config
-	if err := s.teleportClient.Connect(ctx, newTeleportConfig); err != nil {
-		s.log.Error("Failed to reconnect to Teleport with new configuration", "error", err)
+	// Create a new Teleport client instance with updated config
+	newTeleportClient, err := teleport.NewClient(newTeleportConfig)
+	if err != nil {
+		s.log.Error("Failed to create new Teleport client with updated configuration", "error", err)
 		// Note: We continue execution here - the sync will fail but we don't want to crash the whole process
 		return
 	}
 
+	// Replace the old client with the new one
+	s.teleportClient = newTeleportClient
 	s.log.Info("Successfully reconnected to Teleport")
 }
