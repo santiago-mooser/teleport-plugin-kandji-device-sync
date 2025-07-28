@@ -1,4 +1,4 @@
-module teleport-plugin-kandji-device-syncer
+module teleport-plugin-kandji-device-sync
 
 go 1.23.10
 
