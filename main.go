@@ -2,41 +2,19 @@ package main
 
 import (
 	"context"
-	"flag"
-	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
 
-	"teleport-plugin-kandji-device-syncer/config"
-	"teleport-plugin-kandji-device-syncer/internal/ratelimit"
-	"teleport-plugin-kandji-device-syncer/kandji"
-	"teleport-plugin-kandji-device-syncer/syncer"
-	"teleport-plugin-kandji-device-syncer/teleport"
+	"teleport-plugin-kandji-device-sync/config"
+	"teleport-plugin-kandji-device-sync/internal/ratelimit"
+	"teleport-plugin-kandji-device-sync/kandji"
+	"teleport-plugin-kandji-device-sync/syncer"
+	"teleport-plugin-kandji-device-sync/teleport"
 )
-
-
-var (
-	Version    = "dev"
-	Commit     = "n/a"
-	CommitDate = "n/a"
-	TreeState  = "n/a"
-)
-
-func printVersion() {
-	showVersion := flag.Bool("version", false, "show version")
-	flag.Parse()
-	if *showVersion {
-		fmt.Printf("%s, %s, %s, %s\n", Version, Commit, CommitDate, TreeState)
-		os.Exit(0)
-	}
-}
 
 func main() {
-	
-	printVersion()
-	
 	// Load configuration first to get log level
 	cfg, err := config.LoadConfig()
 	if err != nil {
@@ -44,6 +22,9 @@ func main() {
 		slog.Error("Failed to load configuration", "error", err)
 		os.Exit(1)
 	}
+
+	// debug log
+	slog.Debug("Configuration loaded successfully", "config", cfg)
 
 	// Setup structured logging with configured level
 	var logLevel slog.Level
@@ -73,7 +54,7 @@ func main() {
 	teleportClient := teleport.NewClient(cfg.Teleport, rateLimiter)
 
 	// Create and start the syncer
-	syncService := syncer.New(kandjiClient, teleportClient, cfg, log)
+	syncService := syncer.New(kandjiClient, teleportClient, cfg, rateLimiter, log)
 
 	// Set up context for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
