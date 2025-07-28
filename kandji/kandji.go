@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"teleport-plugin-kandji-device-syncer/config"
-	"teleport-plugin-kandji-device-syncer/internal/ratelimit"
+	"teleport-plugin-kandji-device-sync/config"
+	"teleport-plugin-kandji-device-sync/internal/ratelimit"
 )
 
 // User represents the user information from the Kandji API.
@@ -227,4 +227,15 @@ func (c *Client) GetDevices(ctx context.Context) ([]Device, error) {
 	}
 
 	return allDevices, nil
+}
+
+// UpdateRateLimiter updates the rate limiter used by this client
+func (c *Client) UpdateRateLimiter(rateLimiter *ratelimit.Limiter) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if rateLimiter == nil {
+		c.logger.Println("Warning: Attempted to update rate limiter with a nil value. Operation aborted.")
+		return
+	}
+	c.rateLimiter = rateLimiter
 }

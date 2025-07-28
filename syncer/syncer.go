@@ -3,11 +3,13 @@ package syncer
 import (
 	"context"
 	"log/slog"
+	"reflect"
 	"time"
 
-	"teleport-plugin-kandji-device-syncer/config"
-	"teleport-plugin-kandji-device-syncer/kandji"
-	"teleport-plugin-kandji-device-syncer/teleport"
+	"teleport-plugin-kandji-device-sync/config"
+	"teleport-plugin-kandji-device-sync/internal/ratelimit"
+	"teleport-plugin-kandji-device-sync/kandji"
+	"teleport-plugin-kandji-device-sync/teleport"
 )
 
 // Syncer orchestrates the synchronization from Kandji to Teleport.
@@ -15,15 +17,17 @@ type Syncer struct {
 	kandjiClient   *kandji.Client
 	teleportClient *teleport.Client
 	config         *config.Config
+	rateLimiter    *ratelimit.Limiter
 	log            *slog.Logger
 }
 
 // New creates a new Syncer.
-func New(kClient *kandji.Client, tClient *teleport.Client, cfg *config.Config, log *slog.Logger) *Syncer {
+func New(kClient *kandji.Client, tClient *teleport.Client, cfg *config.Config, rateLimiter *ratelimit.Limiter, log *slog.Logger) *Syncer {
 	return &Syncer{
 		kandjiClient:   kClient,
 		teleportClient: tClient,
 		config:         cfg,
+		rateLimiter:    rateLimiter,
 		log:            log,
 	}
 }
@@ -66,6 +70,9 @@ func (s *Syncer) Run(ctx context.Context, syncInterval time.Duration) {
 // Sync performs a single synchronization cycle.
 func (s *Syncer) Sync(ctx context.Context) {
 	s.log.Info("Starting new sync cycle")
+
+	// Reload config at the start of each sync cycle to support rotating identity files
+	s.reloadConfigIfNeeded(ctx)
 
 	// Get trusted devices from Teleport
 	teleportAssetTags, err := s.teleportClient.GetTrustedDevices(ctx)
@@ -331,4 +338,126 @@ func (s *Syncer) handleMissingDevices(ctx context.Context, missingDevices []stri
 		// This should never happen due to config validation, but log just in case
 		s.log.Error("Unknown on_missing action", "action", s.config.OnMissing)
 	}
+}
+
+// reloadConfigIfNeeded reloads the configuration and handles any necessary updates
+func (s *Syncer) reloadConfigIfNeeded(ctx context.Context) {
+	s.log.Debug("Checking for config updates")
+
+	// Load the latest config
+	newConfig, err := config.LoadConfig()
+	if err != nil {
+		s.log.Error("Failed to reload config, continuing with existing config", "error", err)
+		return
+	}
+
+	// Check if config has changed
+	if s.configChanged(newConfig) {
+		s.log.Info("Configuration changes detected, updating syncer")
+		s.updateConfig(ctx, newConfig)
+	} else {
+		s.log.Debug("No configuration changes detected")
+	}
+}
+
+// configChanged compares the current config with a new config to detect changes
+func (s *Syncer) configChanged(newConfig *config.Config) bool {
+	// Compare critical fields that would require updates
+	return s.config.Teleport.IdentityFile != newConfig.Teleport.IdentityFile ||
+		s.config.Teleport.ProxyAddr != newConfig.Teleport.ProxyAddr ||
+		!reflect.DeepEqual(s.config.RateLimits, newConfig.RateLimits) ||
+		!reflect.DeepEqual(s.config.Kandji, newConfig.Kandji) ||
+		s.config.OnMissing != newConfig.OnMissing ||
+		!reflect.DeepEqual(s.config.Batch, newConfig.Batch)
+}
+
+// updateConfig updates the syncer with new configuration and handles reconnections
+func (s *Syncer) updateConfig(ctx context.Context, newConfig *config.Config) {
+	oldConfig := s.config
+
+	// Update the config
+	s.config = newConfig
+
+	// Check if rate limit settings changed
+	if !reflect.DeepEqual(oldConfig.RateLimits, newConfig.RateLimits) {
+		s.log.Info("Rate limit settings changed, updating rate limiter",
+			"old_kandji_rps", oldConfig.RateLimits.KandjiRequestsPerSecond,
+			"new_kandji_rps", newConfig.RateLimits.KandjiRequestsPerSecond,
+			"old_teleport_rps", oldConfig.RateLimits.TeleportRequestsPerSecond,
+			"new_teleport_rps", newConfig.RateLimits.TeleportRequestsPerSecond,
+			"old_burst", oldConfig.RateLimits.BurstCapacity,
+			"new_burst", newConfig.RateLimits.BurstCapacity)
+
+		// Create new rate limiter with updated settings
+		s.rateLimiter = ratelimit.New(ratelimit.Config{
+			KandjiRequestsPerSecond:   newConfig.RateLimits.KandjiRequestsPerSecond,
+			TeleportRequestsPerSecond: newConfig.RateLimits.TeleportRequestsPerSecond,
+			BurstCapacity:             newConfig.RateLimits.BurstCapacity,
+		})
+
+		// Update clients with new rate limiter
+		s.updateClientRateLimiters()
+	}
+
+	// Check if Teleport connection settings changed
+	if oldConfig.Teleport.IdentityFile != newConfig.Teleport.IdentityFile ||
+		oldConfig.Teleport.ProxyAddr != newConfig.Teleport.ProxyAddr {
+		s.log.Info("Teleport connection settings changed, reconnecting",
+			"old_identity_file", oldConfig.Teleport.IdentityFile,
+			"new_identity_file", newConfig.Teleport.IdentityFile,
+			"old_proxy_addr", oldConfig.Teleport.ProxyAddr,
+			"new_proxy_addr", newConfig.Teleport.ProxyAddr)
+
+		s.reconnectToTeleport(ctx, newConfig.Teleport)
+	}
+
+	// Log other significant changes
+	if !reflect.DeepEqual(oldConfig.Kandji, newConfig.Kandji) {
+		s.log.Info("Kandji configuration changed")
+	}
+
+	if oldConfig.OnMissing != newConfig.OnMissing {
+		s.log.Info("OnMissing behavior changed",
+			"old", oldConfig.OnMissing,
+			"new", newConfig.OnMissing)
+	}
+
+	if !reflect.DeepEqual(oldConfig.Batch, newConfig.Batch) {
+		s.log.Info("Batch configuration changed",
+			"old_size", oldConfig.Batch.Size,
+			"new_size", newConfig.Batch.Size,
+			"old_max_concurrent", oldConfig.Batch.MaxConcurrentBatches,
+			"new_max_concurrent", newConfig.Batch.MaxConcurrentBatches)
+	}
+}
+
+// updateClientRateLimiters updates the rate limiters for all clients
+func (s *Syncer) updateClientRateLimiters() {
+	// Update the teleport client's rate limiter
+	s.teleportClient.UpdateRateLimiter(s.rateLimiter)
+
+	// Update the kandji client's rate limiter
+	s.kandjiClient.UpdateRateLimiter(s.rateLimiter)
+}
+
+// reconnectToTeleport safely reconnects to Teleport with new settings
+func (s *Syncer) reconnectToTeleport(ctx context.Context, newTeleportConfig config.TeleportConfig) {
+	s.log.Info("Reconnecting to Teleport with updated configuration")
+
+	// Close existing connection
+	if err := s.teleportClient.Close(); err != nil {
+		s.log.Warn("Error closing existing Teleport connection", "error", err)
+	}
+
+	// Create a new Teleport client instance with updated config
+	newTeleportClient, err := teleport.NewClient(newTeleportConfig)
+	if err != nil {
+		s.log.Error("Failed to create new Teleport client with updated configuration", "error", err)
+		// Note: We continue execution here - the sync will fail but we don't want to crash the whole process
+		return
+	}
+
+	// Replace the old client with the new one
+	s.teleportClient = newTeleportClient
+	s.log.Info("Successfully reconnected to Teleport")
 }
