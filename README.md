@@ -38,7 +38,7 @@ The service performs a one-way synchronization:
       allow:
         rules:
           - resources: ['device']
-            verbs: ['list', 'create', 'read']
+            verbs: ['list', 'read', 'create', 'delete']
     ```
     You can generate the certificate using:
     ```bash
