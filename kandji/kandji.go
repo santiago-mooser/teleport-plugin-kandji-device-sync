@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"teleport-plugin-kandji-device-syncer/config"
-	"teleport-plugin-kandji-device-syncer/internal/ratelimit"
+	"teleport-plugin-kandji-device-sync/config"
+	"teleport-plugin-kandji-device-sync/internal/ratelimit"
 )
 
 // User represents the user information from the Kandji API.
@@ -227,4 +227,9 @@ func (c *Client) GetDevices(ctx context.Context) ([]Device, error) {
 	}
 
 	return allDevices, nil
+}
+
+// UpdateRateLimiter updates the rate limiter used by this client
+func (c *Client) UpdateRateLimiter(rateLimiter *ratelimit.Limiter) {
+	c.rateLimiter = rateLimiter
 }
