@@ -10,19 +10,6 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-<<<<<<< HEAD
-  # Build and publish both container variants
-  build:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    outputs:
-      image: ${{ steps.image.outputs.image }}
-      standard-digest: ${{ steps.build-standard.outputs.digest }}
-      prod-digest: ${{ steps.build-prod.outputs.digest }}
-      version: ${{ steps.meta.outputs.version }}
-=======
   # Extract metadata for consistent use across jobs
   metadata:
     runs-on: ubuntu-latest
@@ -31,26 +18,12 @@ jobs:
       commit-sha: ${{ steps.meta.outputs.commit-sha }}
       commit-date: ${{ steps.meta.outputs.commit-date }}
       image-name: ${{ steps.meta.outputs.image-name }}
->>>>>>> main
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-<<<<<<< HEAD
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-=======
->>>>>>> main
       - name: Extract metadata
         id: meta
         run: |
@@ -58,123 +31,6 @@ jobs:
           VERSION=${GITHUB_REF#refs/tags/v}
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
 
-<<<<<<< HEAD
-      - name: Build and push standard Alpine-based container
-        uses: docker/build-push-action@v5
-        id: build-standard
-        with:
-          context: .
-          file: ./Dockerfile
-          push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-          labels: |
-            org.opencontainers.image.title=${{ github.repository }}
-            org.opencontainers.image.description=Teleport Plugin for Kandji Device Sync
-            org.opencontainers.image.version=${{ steps.meta.outputs.version }}
-            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.sha }}
-          build-args: |
-            GIT_COMMIT_TAG=${{ steps.meta.outputs.version }}
-            GIT_COMMIT_SHA=${{ github.sha }}
-            GIT_COMMIT_MESSAGE=${{ github.event.head_commit.message }}
-            IMAGE_BUILD_TIME=${{ github.event.repository.updated_at }}
-            CI_PROJECT_URL=${{ github.server_url }}/${{ github.repository }}
-            CI_PROJECT_NAME=${{ github.repository }}
-
-      - name: Build and push production Distroless-based container
-        uses: docker/build-push-action@v5
-        id: build-prod
-        with:
-          context: .
-          file: ./Dockerfile.prod
-          push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-prod:${{ steps.meta.outputs.version }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-prod:latest
-          labels: |
-            org.opencontainers.image.title=${{ github.repository }}-prod
-            org.opencontainers.image.description=Teleport Plugin for Kandji Device Sync (Production/Distroless)
-            org.opencontainers.image.version=${{ steps.meta.outputs.version }}
-            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.sha }}
-          build-args: |
-            GIT_COMMIT_TAG=${{ steps.meta.outputs.version }}
-            GIT_COMMIT_SHA=${{ github.sha }}
-            GIT_COMMIT_MESSAGE=${{ github.event.head_commit.message }}
-            IMAGE_BUILD_TIME=${{ github.event.repository.updated_at }}
-            CI_PROJECT_URL=${{ github.server_url }}/${{ github.repository }}
-            CI_PROJECT_NAME=${{ github.repository }}
-
-      - name: Output image name
-        id: image
-        run: |
-          # Normalize image name to lowercase for SLSA provenance
-          image_name=$(echo "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}" | tr '[:upper:]' '[:lower:]')
-          echo "image=${image_name}" >> "$GITHUB_OUTPUT"
-
-  # Generate SLSA3 provenance for standard container
-  provenance-standard:
-    needs: [build]
-    permissions:
-      actions: read # for detecting the Github Actions environment
-      id-token: write # for creating OIDC tokens for signing
-      packages: write # for uploading attestations
-    if: startsWith(github.ref, 'refs/tags/')
-    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
-    with:
-      image: ${{ needs.build.outputs.image }}
-      digest: ${{ needs.build.outputs.standard-digest }}
-      registry-username: ${{ github.actor }}
-    secrets:
-      registry-password: ${{ secrets.GITHUB_TOKEN }}
-
-  # Generate SLSA3 provenance for production container
-  provenance-production:
-    needs: [build]
-    permissions:
-      actions: read # for detecting the Github Actions environment
-      id-token: write # for creating OIDC tokens for signing
-      packages: write # for uploading attestations
-    if: startsWith(github.ref, 'refs/tags/')
-    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
-    with:
-      image: ${{ needs.build.outputs.image }}-prod
-      digest: ${{ needs.build.outputs.prod-digest }}
-      registry-username: ${{ github.actor }}
-    secrets:
-      registry-password: ${{ secrets.GITHUB_TOKEN }}
-
-  # Summary job to output build information
-  summary:
-    runs-on: ubuntu-latest
-    needs: [build, provenance-standard, provenance-production]
-    if: startsWith(github.ref, 'refs/tags/')
-    steps:
-      - name: Output build summary
-        run: |
-          echo "🐳 Successfully built and published container images with SLSA3 provenance:"
-          echo ""
-          echo "📦 Standard (Alpine-based):"
-          echo "   • ${{ needs.build.outputs.image }}:${{ needs.build.outputs.version }}"
-          echo "   • ${{ needs.build.outputs.image }}:latest"
-          echo "   • SHA: ${{ needs.build.outputs.standard-digest }}"
-          echo ""
-          echo "📦 Production (Distroless-based):"
-          echo "   • ${{ needs.build.outputs.image }}-prod:${{ needs.build.outputs.version }}"
-          echo "   • ${{ needs.build.outputs.image }}-prod:latest"
-          echo "   • SHA: ${{ needs.build.outputs.prod-digest }}"
-          echo ""
-          echo "🔐 SLSA3 provenance attestations generated and published"
-          echo "📋 Usage examples:"
-          echo "   docker pull ${{ needs.build.outputs.image }}:${{ needs.build.outputs.version }}"
-          echo "   docker pull ${{ needs.build.outputs.image }}-prod:${{ needs.build.outputs.version }}"
-          echo ""
-          echo "🔍 Verify provenance with slsa-verifier:"
-          echo "   slsa-verifier verify-image ${{ needs.build.outputs.image }}:${{ needs.build.outputs.version }} \\"
-          echo "     --source-uri github.com/${{ github.repository }}"
-=======
           # Get commit info
           echo "commit-sha=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
           echo "commit-date=$(git log --date=iso8601-strict -1 --pretty=%ct)" >> "$GITHUB_OUTPUT"
@@ -196,6 +52,13 @@ jobs:
       image: ${{ needs.metadata.outputs.image-name }}
       registry-username: ${{ github.actor }}
       dockerfile: Dockerfile
+      build-args: |
+        GIT_COMMIT_TAG=${{ needs.metadata.outputs.version }}
+        GIT_COMMIT_SHA=${{ needs.metadata.outputs.commit-sha }}
+        GIT_COMMIT_MESSAGE=${{ github.event.head_commit.message }}
+        IMAGE_BUILD_TIME=${{ needs.metadata.outputs.commit-date }}
+        CI_PROJECT_URL=${{ github.server_url }}/${{ github.repository }}
+        CI_PROJECT_NAME=${{ github.repository }}
     secrets:
       registry-password: ${{ secrets.GITHUB_TOKEN }}
 
@@ -212,6 +75,13 @@ jobs:
       image: ${{ needs.metadata.outputs.image-name }}-prod
       registry-username: ${{ github.actor }}
       dockerfile: Dockerfile.prod
+      build-args: |
+        GIT_COMMIT_TAG=${{ needs.metadata.outputs.version }}
+        GIT_COMMIT_SHA=${{ needs.metadata.outputs.commit-sha }}
+        GIT_COMMIT_MESSAGE=${{ github.event.head_commit.message }}
+        IMAGE_BUILD_TIME=${{ needs.metadata.outputs.commit-date }}
+        CI_PROJECT_URL=${{ github.server_url }}/${{ github.repository }}
+        CI_PROJECT_NAME=${{ github.repository }}
     secrets:
       registry-password: ${{ secrets.GITHUB_TOKEN }}
 
@@ -278,4 +148,7 @@ jobs:
           echo "📋 Usage examples:"
           echo "   docker pull ${{ needs.metadata.outputs.image-name }}:${{ needs.metadata.outputs.version }}"
           echo "   docker pull ${{ needs.metadata.outputs.image-name }}-prod:${{ needs.metadata.outputs.version }}"
->>>>>>> main
+          echo ""
+          echo "🔍 Verify provenance with slsa-verifier:"
+          echo "   slsa-verifier verify-image ${{ needs.metadata.outputs.image-name }}:${{ needs.metadata.outputs.version }} \\"
+          echo "     --source-uri github.com/${{ github.repository }}"
