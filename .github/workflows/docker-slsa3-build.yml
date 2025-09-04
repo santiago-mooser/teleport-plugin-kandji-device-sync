@@ -21,6 +21,7 @@ jobs:
       standard-digest: ${{ steps.build-standard.outputs.digest }}
       prod-digest: ${{ steps.build-prod.outputs.digest }}
       version: ${{ steps.meta.outputs.version }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
