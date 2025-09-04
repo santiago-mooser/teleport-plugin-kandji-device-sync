@@ -13,3 +13,4 @@ This helm chart is used to deploy the service **without** any secrets. You will 
      path: identity.pem
    ```
    
+In order to deploy the teleport identity file automatically, you can use teleport's tbot helm chart to automatically provision the plugin's identity using machineID.
