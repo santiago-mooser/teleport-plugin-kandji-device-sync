@@ -3,6 +3,7 @@ package teleport
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/gravitational/teleport/api/client"
@@ -33,16 +34,30 @@ type FailedDevice struct {
 	Error        error
 }
 
+// HealthStatus tracks the health of the teleport client
+type HealthStatus struct {
+	TeleportConnected bool
+	IdentityValid     bool
+	LastRefresh       time.Time
+}
+
 // Client wraps the Teleport API client for device trust operations.
 type Client struct {
-	apiClient   *client.Client
-	rateLimiter *ratelimit.Limiter
+	apiClient    *client.Client
+	rateLimiter  *ratelimit.Limiter
+	mu           sync.RWMutex
+	healthStatus *HealthStatus
 }
 
 // NewClient creates a new Teleport API client.
 func NewClient(cfg config.TeleportConfig, rateLimiter *ratelimit.Limiter) *Client {
 	return &Client{
 		rateLimiter: rateLimiter,
+		healthStatus: &HealthStatus{
+			TeleportConnected: false,
+			IdentityValid:     false,
+			LastRefresh:       time.Now(),
+		},
 	}
 }
 
@@ -63,10 +78,19 @@ func (c *Client) Connect(ctx context.Context, cfg config.TeleportConfig) error {
 
 	apiClient, err := client.New(ctx, clientConfig)
 	if err != nil {
+		c.mu.Lock()
+		c.healthStatus.TeleportConnected = false
+		c.healthStatus.IdentityValid = false
+		c.mu.Unlock()
 		return fmt.Errorf("failed to create Teleport API client: %w", err)
 	}
 
+	c.mu.Lock()
 	c.apiClient = apiClient
+	c.healthStatus.TeleportConnected = true
+	c.healthStatus.IdentityValid = true
+	c.healthStatus.LastRefresh = time.Now()
+	c.mu.Unlock()
 	return nil
 }
 
@@ -456,4 +480,91 @@ func (c *Client) AddDevice(ctx context.Context, serialNumber string) error {
 // UpdateRateLimiter updates the rate limiter used by this client
 func (c *Client) UpdateRateLimiter(rateLimiter *ratelimit.Limiter) {
 	c.rateLimiter = rateLimiter
+}
+
+// GetHealthStatus returns the current health status
+func (c *Client) GetHealthStatus() *HealthStatus {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return &HealthStatus{
+		TeleportConnected: c.healthStatus.TeleportConnected,
+		IdentityValid:     c.healthStatus.IdentityValid,
+		LastRefresh:       c.healthStatus.LastRefresh,
+	}
+}
+
+// RefreshIdentity refreshes the identity file and reconnects with 3 retry attempts
+func (c *Client) RefreshIdentity(ctx context.Context, cfg config.TeleportConfig) error {
+	const maxRetries = 3
+	baseDelay := 1 * time.Second
+
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		// Load new identity file
+		creds := client.LoadIdentityFile(cfg.IdentityFile)
+
+		// Create test client with new credentials
+		testClientConfig := client.Config{
+			Addrs:       []string{cfg.ProxyAddr},
+			Credentials: []client.Credentials{creds},
+		}
+
+		// Test the new identity by creating a client and attempting a simple operation
+		testClient, err := client.New(ctx, testClientConfig)
+		if err != nil {
+			if attempt == maxRetries {
+				c.mu.Lock()
+				c.healthStatus.TeleportConnected = false
+				c.healthStatus.IdentityValid = false
+				c.mu.Unlock()
+				return fmt.Errorf("failed to refresh identity after %d attempts: %w", maxRetries, err)
+			}
+
+			// Wait before retrying with exponential backoff
+			delay := baseDelay * time.Duration(1<<(attempt-1))
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(delay):
+				continue
+			}
+		}
+
+		// Validate the new connection by attempting to list devices
+		_, err = testClient.DevicesClient().ListDevices(ctx, &devicetrustv1.ListDevicesRequest{})
+		if err != nil {
+			testClient.Close()
+			if attempt == maxRetries {
+				c.mu.Lock()
+				c.healthStatus.TeleportConnected = false
+				c.healthStatus.IdentityValid = false
+				c.mu.Unlock()
+				return fmt.Errorf("failed to validate new identity after %d attempts: %w", maxRetries, err)
+			}
+
+			// Wait before retrying with exponential backoff
+			delay := baseDelay * time.Duration(1<<(attempt-1))
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(delay):
+				continue
+			}
+		}
+
+		// Success! Replace the current client with the new one
+		c.mu.Lock()
+		if c.apiClient != nil {
+			c.apiClient.Close()
+		}
+		c.apiClient = testClient
+		c.healthStatus.TeleportConnected = true
+		c.healthStatus.IdentityValid = true
+		c.healthStatus.LastRefresh = time.Now()
+		c.mu.Unlock()
+
+		return nil
+	}
+
+	// This should never be reached due to the loop structure, but included for safety
+	return fmt.Errorf("failed to refresh identity after %d attempts", maxRetries)
 }

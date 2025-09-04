@@ -365,6 +365,7 @@ func (s *Syncer) configChanged(newConfig *config.Config) bool {
 	// Compare critical fields that would require updates
 	return s.config.Teleport.IdentityFile != newConfig.Teleport.IdentityFile ||
 		s.config.Teleport.ProxyAddr != newConfig.Teleport.ProxyAddr ||
+		s.config.Teleport.IdentityRefreshInterval != newConfig.Teleport.IdentityRefreshInterval ||
 		!reflect.DeepEqual(s.config.RateLimits, newConfig.RateLimits) ||
 		!reflect.DeepEqual(s.config.Kandji, newConfig.Kandji) ||
 		s.config.OnMissing != newConfig.OnMissing ||
@@ -449,15 +450,12 @@ func (s *Syncer) reconnectToTeleport(ctx context.Context, newTeleportConfig conf
 		s.log.Warn("Error closing existing Teleport connection", "error", err)
 	}
 
-	// Create a new Teleport client instance with updated config
-	newTeleportClient, err := teleport.NewClient(newTeleportConfig)
-	if err != nil {
-		s.log.Error("Failed to create new Teleport client with updated configuration", "error", err)
+	// Establish new connection with updated config
+	if err := s.teleportClient.Connect(ctx, newTeleportConfig); err != nil {
+		s.log.Error("Failed to reconnect to Teleport with new configuration", "error", err)
 		// Note: We continue execution here - the sync will fail but we don't want to crash the whole process
 		return
 	}
 
-	// Replace the old client with the new one
-	s.teleportClient = newTeleportClient
 	s.log.Info("Successfully reconnected to Teleport")
 }

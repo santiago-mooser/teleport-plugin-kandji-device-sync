@@ -42,8 +42,9 @@ type KandjiConfig struct {
 
 // TeleportConfig holds Teleport-specific settings.
 type TeleportConfig struct {
-	ProxyAddr    string `yaml:"proxy_addr"`
-	IdentityFile string `yaml:"identity_file"`
+	ProxyAddr               string        `yaml:"proxy_addr"`
+	IdentityFile            string        `yaml:"identity_file"`
+	IdentityRefreshInterval time.Duration `yaml:"identity_refresh_interval"`
 }
 
 // RateLimitConfig holds rate limiting settings.
@@ -97,6 +98,14 @@ func LoadConfig() (*Config, error) {
 
 	if logLevel := os.Getenv("LOG_LEVEL"); logLevel != "" {
 		cfg.Log.Level = logLevel
+	} else {
+		cfg.Log.Level = "info"
+	}
+
+	if refreshInterval := os.Getenv("TELEPORT_IDENTITY_REFRESH_INTERVAL"); refreshInterval != "" {
+		if interval, err := time.ParseDuration(refreshInterval); err == nil {
+			cfg.Teleport.IdentityRefreshInterval = interval
+		}
 	}
 
 	// Set default sync interval if not specified
@@ -127,6 +136,9 @@ func LoadConfig() (*Config, error) {
 	if cfg.Batch.MaxConcurrentBatches == 0 {
 		cfg.Batch.MaxConcurrentBatches = 3
 	}
+
+	// Note: IdentityRefreshInterval defaults to 0 (disabled) if not configured
+	// Users must explicitly enable it by setting a positive duration
 
 	// Validate required configuration
 	if err := cfg.Validate(); err != nil {
@@ -166,7 +178,7 @@ func (c *Config) Validate() error {
 
 	// Check if identity file exists
 	if _, err := os.Stat(c.Teleport.IdentityFile); err != nil {
-		return fmt.Errorf("teleport identity file does not exist: %s", c.Teleport.IdentityFile)
+		return fmt.Errorf("Teleport identity file does not exist: %s", c.Teleport.IdentityFile)
 	}
 
 	return nil
