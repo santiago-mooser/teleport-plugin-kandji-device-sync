@@ -18,8 +18,8 @@ jobs:
       packages: write
     outputs:
       image: ${{ steps.image.outputs.image }}
-      standard-digest: ${{ steps.build-standard.outputs.digest }}
-      prod-digest: ${{ steps.build-prod.outputs.digest }}
+      debug-digest: ${{ steps.build-debug.outputs.digest }}
+      main-digest: ${{ steps.build-main.outputs.digest }}
       version: ${{ steps.meta.outputs.version }}
 
     steps:
@@ -45,16 +45,16 @@ jobs:
           VERSION=${GITHUB_REF#refs/tags/v}
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
 
-      - name: Build and push standard Alpine-based container
+      - name: Build and push debug Alpine-based container
         uses: docker/build-push-action@v5
-        id: build-standard
+        id: build-debug
         with:
           context: .
           file: ./Dockerfile
           push: true
+          platforms: linux/amd64,linux/arm64
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-debug:${{ steps.meta.outputs.version }}
           labels: |
             org.opencontainers.image.title=${{ github.repository }}
             org.opencontainers.image.description=Teleport Plugin for Kandji Device Sync
@@ -69,19 +69,19 @@ jobs:
             CI_PROJECT_URL=${{ github.server_url }}/${{ github.repository }}
             CI_PROJECT_NAME=${{ github.repository }}
 
-      - name: Build and push production Distroless-based container
+      - name: Build and push main Distroless-based container
         uses: docker/build-push-action@v5
-        id: build-prod
+        id: build-main
         with:
           context: .
           file: ./Dockerfile.prod
           push: true
+          platforms: linux/amd64,linux/arm64
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-prod:${{ steps.meta.outputs.version }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-prod:latest
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }}
           labels: |
-            org.opencontainers.image.title=${{ github.repository }}-prod
-            org.opencontainers.image.description=Teleport Plugin for Kandji Device Sync (Production/Distroless)
+            org.opencontainers.image.title=${{ github.repository }}
+            org.opencontainers.image.description=Teleport Plugin for Kandji Device Sync
             org.opencontainers.image.version=${{ steps.meta.outputs.version }}
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
@@ -100,8 +100,8 @@ jobs:
           image_name=$(echo "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}" | tr '[:upper:]' '[:lower:]')
           echo "image=${image_name}" >> "$GITHUB_OUTPUT"
 
-  # Generate SLSA3 provenance for standard container
-  provenance-standard:
+  # Generate SLSA3 provenance for main container
+  provenance-main:
     needs: [build]
     permissions:
       actions: read # for detecting the Github Actions environment
@@ -111,13 +111,13 @@ jobs:
     uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
     with:
       image: ${{ needs.build.outputs.image }}
-      digest: ${{ needs.build.outputs.standard-digest }}
+      digest: ${{ needs.build.outputs.main-digest }}
       registry-username: ${{ github.actor }}
     secrets:
       registry-password: ${{ secrets.GITHUB_TOKEN }}
 
-  # Generate SLSA3 provenance for production container
-  provenance-production:
+  # Generate SLSA3 provenance for debug container
+  provenance-debug:
     needs: [build]
     permissions:
       actions: read # for detecting the Github Actions environment
@@ -126,8 +126,8 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/')
     uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
     with:
-      image: ${{ needs.build.outputs.image }}-prod
-      digest: ${{ needs.build.outputs.prod-digest }}
+      image: ${{ needs.build.outputs.image }}-debug
+      digest: ${{ needs.build.outputs.debug-digest }}
       registry-username: ${{ github.actor }}
     secrets:
       registry-password: ${{ secrets.GITHUB_TOKEN }}
@@ -135,27 +135,25 @@ jobs:
   # Summary job to output build information
   summary:
     runs-on: ubuntu-latest
-    needs: [build, provenance-standard, provenance-production]
+    needs: [build, provenance-main, provenance-debug]
     if: startsWith(github.ref, 'refs/tags/')
     steps:
       - name: Output build summary
         run: |
-          echo "🐳 Successfully built and published container images with SLSA3 provenance:"
+          echo "🐳 Successfully built and published multi-platform container images with SLSA3 provenance:"
           echo ""
-          echo "📦 Standard (Alpine-based):"
+          echo "📦 Main (Distroless-based) - linux/amd64,linux/arm64:"
           echo "   • ${{ needs.build.outputs.image }}:${{ needs.build.outputs.version }}"
-          echo "   • ${{ needs.build.outputs.image }}:latest"
-          echo "   • SHA: ${{ needs.build.outputs.standard-digest }}"
+          echo "   • SHA: ${{ needs.build.outputs.main-digest }}"
           echo ""
-          echo "📦 Production (Distroless-based):"
-          echo "   • ${{ needs.build.outputs.image }}-prod:${{ needs.build.outputs.version }}"
-          echo "   • ${{ needs.build.outputs.image }}-prod:latest"
-          echo "   • SHA: ${{ needs.build.outputs.prod-digest }}"
+          echo "📦 Debug (Alpine-based) - linux/amd64,linux/arm64:"
+          echo "   • ${{ needs.build.outputs.image }}-debug:${{ needs.build.outputs.version }}"
+          echo "   • SHA: ${{ needs.build.outputs.debug-digest }}"
           echo ""
-          echo "🔐 SLSA3 provenance attestations generated and published"
+          echo "🔐 SLSA3 provenance attestations generated and published for both images"
           echo "📋 Usage examples:"
           echo "   docker pull ${{ needs.build.outputs.image }}:${{ needs.build.outputs.version }}"
-          echo "   docker pull ${{ needs.build.outputs.image }}-prod:${{ needs.build.outputs.version }}"
+          echo "   docker pull ${{ needs.build.outputs.image }}-debug:${{ needs.build.outputs.version }}"
           echo ""
           echo "🔍 Verify provenance with slsa-verifier:"
           echo "   slsa-verifier verify-image ${{ needs.build.outputs.image }}:${{ needs.build.outputs.version }} \\"
