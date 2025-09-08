@@ -1,12 +1,12 @@
 module teleport-plugin-kandji-device-sync
 
-go 1.23.10
+go 1.24.0
 
 toolchain go1.24.1
 
 require (
 	github.com/gravitational/teleport/api v0.0.0-20250613225801-8f43d61ae5ce
-	golang.org/x/time v0.12.0
+	golang.org/x/time v0.13.0
 	gopkg.in/yaml.v2 v2.4.0
 )
 
