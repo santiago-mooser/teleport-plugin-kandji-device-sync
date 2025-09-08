@@ -7,8 +7,8 @@ replicaCount: 1
 
 image:
   # I recommend you self-host this
-  repository: santiagomooser/teleport-plugin-kandji-device-syncer
-  tag: "v1.11.0-distroless"
+  repository: santiagomooser/teleport-plugin-kandji-device-sync
+  tag: "1.13.0"
   pullPolicy: IfNotPresent
 imagePullSecret:
   - name: regcred
